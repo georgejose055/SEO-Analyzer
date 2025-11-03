@@ -1,16 +1,17 @@
-streamlit==1.38.0  # Stable with 3.11; avoids 1.39+ 3.13 bugs
-pandas==2.1.4  # Works on 3.11 wheel; no build needed
-numpy==1.26.4  # Matches pandas/scikit; avoids 2.x conflicts
-scikit-learn==1.5.0
-sentence-transformers==2.7.0  # Stable on 3.11; later versions build issues
-torch==2.3.1+cpu
-torchvision==0.18.1+cpu
-torchaudio==2.3.1+cpu
---index-url https://download.pytorch.org/whl/cpu
+streamlit==1.40.0  # Latest with Python 3.13 wheels
+pandas==2.2.3  # 3.13 wheel (no build)
+numpy==1.26.4  # Stable with pandas 2.2.3
+scikit-learn==1.5.1
+sentence-transformers==3.1.1  # Latest; pulls compatible torch/sentencepiece
+torch==2.4.1
+torchvision==0.19.1
+torchaudio==2.4.1
+--index-url https://download.pytorch.org/whl/cpu  # CPU-only wheels; no +cpu tag
 beautifulsoup4==4.12.3
 requests==2.32.3
 textstat==0.7.4
 nltk==3.8.1
 imbalanced-learn==0.12.3
 joblib==1.4.2
-scipy==1.13.1  # For sentence-transformers
+scipy==1.13.1  # For embeddings
+cython==3.0.11  # If any C++ deps
