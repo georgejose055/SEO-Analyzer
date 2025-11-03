@@ -10,3 +10,6 @@ sentence-transformers
 joblib
 selenium  # Optional for anti-block
 webdriver-manager  # For Selenium
+textstat==0.7.3
+nltk==3.8.1
+requests==2.31.0
