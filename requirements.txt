@@ -1,15 +1,16 @@
-streamlit==1.28.1
-pandas==2.1.4
-numpy
-requests
-beautifulsoup4==4.12.2
-nltk
-textstat
-scikit-learn
-sentence-transformers
-joblib
-selenium  # Optional for anti-block
-webdriver-manager  # For Selenium
-textstat==0.7.3
+streamlit==1.40.0
+pandas==2.2.3  # Supports Python 3.13; avoids source build
+numpy==2.1.1   # Compatible with pandas 2.2.3 + scikit-learn
+scikit-learn==1.5.1
+sentence-transformers==3.0.1
+torch==2.4.1+cpu  # CPU-only for Cloud; +cpu suffix ensures wheel
+torchvision==0.19.1+cpu
+torchaudio==2.4.1+cpu
+--index-url https://download.pytorch.org/whl/cpu
+beautifulsoup4==4.12.3
+requests==2.32.3
+textstat==0.7.4
 nltk==3.8.1
-requests==2.31.0
+imbalanced-learn==0.12.3
+joblib==1.4.2
+cython==3.0.11  # Ensures Cython compat for any extensions
