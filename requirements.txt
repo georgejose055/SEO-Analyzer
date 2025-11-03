@@ -1,10 +1,11 @@
---index-strategy unsafe-best-match
+--index-url https://pypi.org/simple
 --extra-index-url https://download.pytorch.org/whl/cpu
+--index-strategy unsafe-best-match
 torch==2.5.1+cpu
 sentence-transformers==3.1.1
 streamlit==1.40.0
 pandas==2.2.3
-numpy==2.1.1  # cp313 wheel; post-3.13 ABI
+numpy==2.1.1  # cp313 wheel from PyPI; no tar.gz
 scikit-learn==1.5.1  # cp313 wheel; numpy 2.1 compat
 beautifulsoup4==4.12.3
 requests==2.32.3
