@@ -276,29 +276,3 @@ else:
 
 st.markdown("---")
 st.markdown("Streamlit | Kaggle | scikit-learn. For blocks: Manual/Selenium/Proxies/APIs.")
-
-import pickle
-import os
-from sentence_transformers import SentenceTransformer
-import joblib  # For RF if not using pickle
-
-# Add after imports: Disable parallelism for Cloud
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
-# Load RF (use joblib for scikit models; safer)
-try:
-    rf_model = joblib.load('rf_model.pkl')  # Or pickle if joblib not in reqs
-except FileNotFoundError:
-    from sklearn.ensemble import RandomForestClassifier  # Fallback; retrain if needed
-    rf_model = RandomForestClassifier()  # Placeholder; load dynamically in prod
-
-# Load SBERT dynamically (avoids 87MB upload)
-try:
-    sbert_model = SentenceTransformer('all-MiniLM-L6-v2')  # Downloads to ~/.cache
-except Exception as e:
-    st.error(f"SBERT load error: {e}")
-    sbert_model = None
-
-# Load label encoder
-label_encoder = pickle.load(open('label_encoder.pkl', 'rb'))  # Small, OK
-
