@@ -1,0 +1,10 @@
+{
+  "url": "https://httpbin.org/html",
+  "title": "No title",
+  "word_count": 624,
+  "readability": 30,
+  "quality_label": "Low",
+  "confidence": 1.0,
+  "is_thin": false,
+  "similar_to": []
+}

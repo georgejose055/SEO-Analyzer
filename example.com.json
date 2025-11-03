@@ -1,0 +1,10 @@
+{
+  "url": "https://example.com",
+  "title": "Example Domain",
+  "word_count": 21,
+  "readability": 16.3,
+  "quality_label": "Low",
+  "confidence": 1.0,
+  "is_thin": true,
+  "similar_to": []
+}

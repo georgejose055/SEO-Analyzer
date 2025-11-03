@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+*.log
+venv/
+.env
+.git/
+README_backup.md
+*.zip

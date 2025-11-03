@@ -1,0 +1,12 @@
+streamlit==1.28.1
+pandas==2.1.4
+numpy
+requests
+beautifulsoup4==4.12.2
+nltk
+textstat
+scikit-learn
+sentence-transformers
+joblib
+selenium  # Optional for anti-block
+webdriver-manager  # For Selenium
