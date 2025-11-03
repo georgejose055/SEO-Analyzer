@@ -1,178 +1,198 @@
 import streamlit as st
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import textstat
+import pandas as pd
+import numpy as np
+import pickle
+import os
+from textstat import flesch_reading_ease
 import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
+from sentence_transformers import SentenceTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
-from sentence_transformers import SentenceTransformer
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import joblib
-import os
-import pickle
-from io import StringIO
-import warnings
-warnings.filterwarnings("ignore")
+from imblearn.over_sampling import SMOTE  # If imbalanced; optional
 
-# Disable parallelism for Streamlit Cloud
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-nltk.download('punkt', quiet=True)
-
-st.set_page_config(page_title="SEO Analyzer", page_icon="🔍", layout="wide")
-
-@st.cache_resource
-def load_or_train_rf():
-    """
-    Load RF model or fallback to training from processed_data.csv.
-    Features: word_count, flesch_reading_ease, sentence_count, avg_sentence_length.
-    Labels: Low, Medium, High (from dataset).
-    """
-    try:
-        # If .pkl exists (optional with LFS)
-        rf_model = joblib.load('rf_model.pkl')
-        with open('label_encoder.pkl', 'rb') as f:
-            label_encoder = pickle.load(f)
-        return rf_model, label_encoder
-    except FileNotFoundError:
-        # Fallback: Train small RF (fast on 69 rows)
-        df = pd.read_csv('processed_data.csv')  # Assumes columns: word_count, flesch_reading_ease, sentence_count, avg_sentence_length, quality_label
-        features = ['word_count', 'flesch_reading_ease', 'sentence_count', 'avg_sentence_length']
-        X = df[features].fillna(0).values
-        le = LabelEncoder()
-        y = le.fit_transform(df['quality_label'])  # Fit on Low, Medium, High
-        rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
-        rf_model.fit(X, y)
-        return rf_model, le
-
-@st.cache_resource
-def load_sbert():
-    """Load SBERT dynamically (downloads/caches ~80MB on first run)."""
-    return SentenceTransformer('all-MiniLM-L6-v2')
-
-# Load models
-rf_model, label_encoder = load_or_train_rf()
-sbert_model = load_sbert()
-
-# Load dataset for similarity (preprocess sentences)
+# Download NLTK data (cache with st.cache_data)
 @st.cache_data
-def load_dataset_sentences():
-    """Load processed_data.csv sentences for similarity comparison."""
-    df = pd.read_csv('processed_data.csv')
-    # Assume 'sentences' column or derive; placeholder: split text if not
-    all_sentences = []
-    for idx, row in df.iterrows():
-        # If 'text' column exists, split; else use placeholder
-        text = row.get('text', 'Sample text for similarity.')  # Adjust column name
-        sentences = nltk.sent_tokenize(text)
-        all_sentences.extend(sentences)
-    return all_sentences
-
-dataset_sentences = load_dataset_sentences()
-
-def fetch_and_extract_text(url):
-    """Fetch URL content with User-Agent, extract clean text."""
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+def download_nltk_data():
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
+    return True
+
+# Predefined SEO reference sentences for similarity (expand as needed)
+REFERENCE_SNIPPETS = [
+    "SEO optimization improves search engine rankings through keyword density and content quality.",
+    "High-quality content with good readability scores enhances user engagement and reduces bounce rates.",
+    "Thin content with low word count often leads to poor SEO performance and penalties.",
+    "Flesch Reading Ease score between 60-70 indicates easy-to-read content ideal for web.",
+    "Meta tags, alt text, and internal linking boost SEO signals for better visibility."
+]
+
+# Load or train models dynamically
+@st.cache_resource
+def load_or_train_models():
+    model_file = 'rf_model.pkl'
+    encoder_file = 'label_encoder.pkl'
+    csv_file = 'processed_data.csv'
+    
+    if os.path.exists(model_file) and os.path.exists(encoder_file) and os.path.exists(csv_file):
+        try:
+            with open(model_file, 'rb') as f:
+                rf_model = pickle.load(f)
+            with open(encoder_file, 'rb') as f:
+                label_encoder = pickle.load(f)
+            return rf_model, label_encoder, True  # Loaded from files
+        except (FileNotFoundError, pickle.UnpicklingError) as e:
+            st.warning(f"Model load failed ({e}); training dynamically.")
+    
+    # Dynamic training if files missing/corrupted
+    if not os.path.exists(csv_file):
+        st.error("processed_data.csv missing! Add training data.")
+        return None, None, False
+    
+    df = pd.read_csv(csv_file)
+    if df.empty or 'quality_label' not in df.columns:
+        st.error("CSV invalid: Needs 'quality_label' and features (word_count, flesch_reading_ease, etc.).")
+        return None, None, False
+    
+    # Features (adjust columns to match your CSV)
+    feature_cols = ['word_count', 'flesch_reading_ease', 'sentence_count', 'avg_sentence_length', 'thin_content']
+    X = df[feature_cols].fillna(0)  # Handle NaNs
+    y = df['quality_label']  # e.g., ['High', 'Medium', 'Low']
+    
+    # Encode labels
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(y)
+    
+    # Balance if imbalanced (optional; remove if not needed)
+    smote = SMOTE(random_state=42)
+    X_balanced, y_balanced = smote.fit_resample(X, y_encoded)
+    
+    # Train RF
+    rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf_model.fit(X_balanced, y_balanced)
+    
+    # Save models (for next runs)
+    with open(model_file, 'wb') as f:
+        pickle.dump(rf_model, f)
+    with open(encoder_file, 'wb') as f:
+        pickle.dump(label_encoder, f)
+    
+    st.info("Models trained and saved dynamically.")
+    return rf_model, label_encoder, False  # Trained dynamically
+
+# Compute SEO features from text
+def compute_features(text):
+    # Download NLTK if needed
+    download_nltk_data()
+    
+    sentences = sent_tokenize(text)
+    words = word_tokenize(text)
+    word_count = len(words)
+    sentence_count = len(sentences)
+    avg_sentence_length = word_count / max(sentence_count, 1)
+    flesch_score = flesch_reading_ease(text)
+    thin_content = word_count < 300  # Arbitrary threshold; adjust
+    
+    return {
+        'word_count': word_count,
+        'flesch_reading_ease': flesch_score,
+        'sentence_count': sentence_count,
+        'avg_sentence_length': avg_sentence_length,
+        'thin_content': thin_content
+    }
+
+# Fetch and clean content from URL
+def fetch_content(url):
+    try:
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
         # Remove script/style
-        for script in soup(["script", "style", "nav", "footer"]):
+        for script in soup(["script", "style"]):
             script.decompose()
         text = soup.get_text()
+        # Clean whitespace
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
         text = ' '.join(chunk for chunk in chunks if chunk)
-        return text
+        return text[:5000]  # Limit for processing
     except Exception as e:
-        st.error(f"Fetch error: {e}")
+        st.error(f"Failed to fetch {url}: {e}")
         return ""
 
-def compute_features(text):
-    """Compute SEO features."""
-    if not text:
-        return {}
-    word_count = len(text.split())
-    sentences = nltk.sent_tokenize(text)
-    sentence_count = len(sentences)
-    avg_sentence_length = word_count / max(sentence_count, 1)
-    flesch_reading_ease = textstat.flesch_reading_ease(text)
-    return {
-        "word_count": word_count,
-        "flesch_reading_ease": flesch_reading_ease,
-        "sentence_count": sentence_count,
-        "avg_sentence_length": avg_sentence_length
-    }
+# Compute SBERT similarity
+@st.cache_resource
+def load_sbert():
+    return SentenceTransformer('all-MiniLM-L6-v2')
 
-def predict_quality(features):
-    """Predict quality label with RF."""
-    feature_cols = ['word_count', 'flesch_reading_ease', 'sentence_count', 'avg_sentence_length']
-    X = np.array([[features.get(col, 0) for col in feature_cols]]).reshape(1, -1)
-    label_idx = rf_model.predict(X)[0]
-    quality_label = label_encoder.inverse_transform([label_idx])[0]
-    return quality_label
-
-def compute_similarity(text):
-    """Compute similar sentences from dataset using SBERT (cosine >0.85)."""
-    sentences = nltk.sent_tokenize(text)
+def compute_similarity(text, model):
+    if not text.strip():
+        return []
+    sentences = sent_tokenize(text)
     if not sentences:
         return []
-    query_embs = sbert_model.encode(sentences)
-    dataset_embs = sbert_model.encode(dataset_sentences)
-    similarities = cosine_similarity(query_embs, dataset_embs)
-    similar_indices = np.where(similarities > 0.85)[1]
-    similar_urls = [dataset_sentences[i][:50] + '...' for i in similar_indices]  # Placeholder; map to URLs if in df
-    return list(set(similar_urls))  # Unique
+    doc_embeddings = model.encode(sentences)
+    ref_embeddings = model.encode(REFERENCE_SNIPPETS)
+    similarities = cosine_similarity(doc_embeddings, ref_embeddings)
+    top_indices = np.argsort(similarities.mean(axis=0))[::-1][:3]  # Top 3 refs
+    similar_to = [REFERENCE_SNIPPETS[i] for i in top_indices]
+    return similar_to
 
-# UI
-st.title("🔍 SEO Analyzer")
-st.markdown("Enter a URL to analyze SEO quality, readability, thin content, and content similarity.")
+# Streamlit UI
+def main():
+    st.title("SEO Content Analyzer")
+    st.write("Enter a URL to analyze content quality, readability, and SEO suggestions.")
+    
+    url = st.text_input("URL", value="https://example.com")
+    
+    if st.button("Analyze"):
+        if not url.startswith(('http://', 'https://')):
+            st.error("Please enter a valid URL starting with http:// or https://.")
+            return
+        
+        with st.spinner("Fetching and analyzing content..."):
+            text = fetch_content(url)
+            if not text:
+                return
+            
+            features = compute_features(text)
+            sbert_model = load_sbert()
+            similar_to = compute_similarity(text, sbert_model)
+            
+            # Prepare feature vector for prediction
+            feature_vector = np.array([[features['word_count'], features['flesch_reading_ease'],
+                                        features['sentence_count'], features['avg_sentence_length'],
+                                        int(features['thin_content'])]])
+            
+            # Load/train models
+            rf_model, label_encoder, from_file = load_or_train_models()
+            if rf_model is None:
+                st.error("Models failed to load/train. Check processed_data.csv.")
+                return
+            
+            # Predict
+            y_pred = rf_model.predict(feature_vector)[0]
+            quality_label = label_encoder.inverse_transform([y_pred])[0]
+            
+            # Output JSON (as per your project)
+            result = {
+                "quality_label": quality_label,
+                "word_count": features['word_count'],
+                "flesch_reading_ease": round(features['flesch_reading_ease'], 1),
+                "sentence_count": features['sentence_count'],
+                "avg_sentence_length": round(features['avg_sentence_length'], 1),
+                "thin_content": features['thin_content'],
+                "similar_to": similar_to[:3]  # Limit to 3
+            }
+            
+            st.json(result)
+            st.success("Analysis complete!")
 
-url = st.text_input("URL:", placeholder="https://en.wikipedia.org/wiki/Search_engine_optimization")
-
-if st.button("Analyze SEO", type="primary"):
-    if url:
-        with st.spinner("Fetching and analyzing... (may take 10-30s for embeddings)"):
-            text = fetch_and_extract_text(url)
-            if text:
-                features = compute_features(text)
-                quality_label = predict_quality(features)
-                thin_content = features["word_count"] < 300
-                similar_to = compute_similarity(text)
-                
-                result = {
-                    "quality_label": quality_label,
-                    "word_count": features["word_count"],
-                    "flesch_reading_ease": round(features["flesch_reading_ease"], 2),
-                    "sentence_count": features["sentence_count"],
-                    "avg_sentence_length": round(features["avg_sentence_length"], 2),
-                    "thin_content": thin_content,
-                    "similar_to": similar_to[:5]  # Top 5
-                }
-                
-                st.success("Analysis complete!")
-                st.json(result)
-                
-                # Metrics display
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Quality", quality_label)
-                with col2:
-                    st.metric("Word Count", features["word_count"])
-                with col3:
-                    st.metric("Readability Score", round(features["flesch_reading_ease"], 2))
-                
-                if thin_content:
-                    st.warning("Thin content detected (under 300 words) – improve depth!")
-                if similar_to:
-                    st.info(f"Similar content found: {len(similar_to)} matches.")
-            else:
-                st.error("No text extracted. Check URL or site blocks scraping.")
-    else:
-        st.warning("Please enter a valid URL.")
-
-# Footer
-st.markdown("---")
-st.caption("Built with Streamlit, scikit-learn, and Sentence Transformers. Data from Kaggle SEO dataset.")
+if __name__ == "__main__":
+    main()
