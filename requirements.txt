@@ -1,15 +1,13 @@
---index-url https://pypi.org/simple
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.5.1+cpu
-sentence-transformers==3.1.1
+torch==2.5.1  # PyPI CUDA wheel; Cloud CPU
+sentence-transformers==3.1.1  # Pulls torch; CPU embeddings
 streamlit==1.40.0
 pandas==2.2.3
 numpy==2.1.1  # cp313 wheel from PyPI
-scikit-learn==1.5.1  # cp313 wheel
+scikit-learn==1.5.1  # cp313 wheel; numpy 2.1 compat
 beautifulsoup4==4.12.3
 requests==2.32.3
 textstat==0.7.4
-nltk==3.8.1
+nltk==3.8.1  # Download punkt in app.py
 imbalanced-learn==0.12.3
 joblib==1.4.2
 scipy==1.14.1  # cp313 wheel
