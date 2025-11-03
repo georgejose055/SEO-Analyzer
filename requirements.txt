@@ -1,14 +1,15 @@
+--index-strategy unsafe-best-match
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.5.1+cpu
 sentence-transformers==3.1.1
 streamlit==1.40.0
 pandas==2.2.3
-numpy==1.26.4  # Compat with sklearn 1.4.2; cp313 wheel
-scikit-learn==1.4.2  # cp313-linux wheel; no tar.gz
+numpy==2.1.1  # cp313 wheel; post-3.13 ABI
+scikit-learn==1.5.1  # cp313 wheel; numpy 2.1 compat
 beautifulsoup4==4.12.3
 requests==2.32.3
 textstat==0.7.4
 nltk==3.8.1
 imbalanced-learn==0.12.3
 joblib==1.4.2
-scipy==1.13.1  # cp313 wheel; no meson/Fortran
+scipy==1.14.1  # cp313 wheel
